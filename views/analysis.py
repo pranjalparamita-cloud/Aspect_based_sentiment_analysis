@@ -1,139 +1,250 @@
 """
-views/analysis.py — Product search grid + one-click NLP dashboard.
-------------------------------------------------------------------
-Sections:
-1. Search & filters (key-wise prefix search from products.py)
-2. Product grid with images (cards from ui_helpers.py)
-3. Selected-product panel + "Analyse The Reviews" button
-4. Dashboard: KPIs + Sunburst/Bar/Radar/Donut/Price charts + reviews
+views/analysis.py — Dataset-driven analysis.
+--------------------------------------------
+1. My Datasets: upload 1+ CSV/XLSX files (or load the demo dataset)
+2. Column mapping: tell the app which column holds reviews / items / ratings / dates
+3. Search: key-wise item search + keyword + rating filters
+4. Analyse: NLP dashboard (Sunburst / Bar / Radar / Donut / Trend line)
 """
 import streamlit as st
 import pandas as pd
 
-from charts import fig_donut, fig_bar, fig_sunburst, fig_radar, fig_price
-from config import POS_COLOR, NEG_COLOR, PLATFORM_COLORS, ACCENT
+from charts import (fig_donut, fig_bar, fig_sunburst, fig_radar,
+                    fig_timeline, fig_rolling, fig_ratings)
+from config import POS_COLOR, NEG_COLOR
 from database import log_event, save_analysis
-from nlp_engine import analyze_reviews, price_trend
-from products import CATEGORIES, PLATFORMS, get_product, search_products, stars_html
-from reviews import get_product_reviews
-from ui_helpers import header, product_card_html, sent_badge
+from datasets import (read_upload, auto_map_columns, reviews_from_df, search_items,
+                      save_dataset, list_datasets, load_dataset, delete_dataset, load_sample)
+from nlp_engine import analyze_reviews
+from ui_helpers import header, item_card_html, sent_badge
 
 
-def page_analysis():
-    user = st.session_state.user
-    header("Aspect Sentiment Analytics",
-           "Real-time granular sentiment analysis categorized by feature aspects.")
+# ---------- section 1: datasets ----------
 
-    # ---------- 1. Search & filters ----------
-    with st.container():
-        s1, s2, s3, s4 = st.columns([2.4, 1.2, 1.2, 1.3])
-        with s1:
-            query = st.text_input("🔎 Search products",
-                                  value=st.session_state.get("query", ""),
-                                  placeholder="Type key-wise:  r → re → red → redmi …  (press Enter)",
-                                  key="query")
-        with s2:
-            platforms = st.multiselect("Platform", PLATFORMS, default=st.session_state.get("f_platforms", []))
-            st.session_state.f_platforms = platforms
-        with s3:
-            category = st.selectbox("Category", CATEGORIES,
-                                    index=CATEGORIES.index(st.session_state.get("f_category", "All")))
-            st.session_state.f_category = category
-        with s4:
-            sort_by = st.selectbox("Sort by", ["Relevance", "Price: Low to High", "Price: High to Low", "Rating: High to Low"])
+def _dataset_section(user):
+    st.markdown("### 📁 Step 1 — My Datasets")
+    up_col, demo_col = st.columns([3, 1])
+    with up_col:
+        files = st.file_uploader("Upload review datasets (CSV or Excel — one or many)",
+                                 type=["csv", "xlsx", "xls"], accept_multiple_files=True)
+    with demo_col:
+        st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+        want_demo = st.button("✨ Load demo dataset", type="secondary", use_container_width=True)
 
-    results = search_products(query, platforms, category, sort_by)
+    if files:
+        for f in files:
+            if f.name in st.session_state.get("uploaded_names", set()):
+                continue
+            try:
+                df, truncated = read_upload(f)
+                if df.empty or len(df.columns) == 0:
+                    st.error(f"❌ {f.name}: no readable data found.")
+                    continue
+                name = save_dataset(user["id"], f.name, df)
+                st.session_state.setdefault("uploaded_names", set()).add(f.name)
+                log_event(user, "upload_dataset", f"Uploaded '{name}' ({len(df)} rows)")
+                st.success(f"✅ Saved **{name}** — {len(df)} rows × {len(df.columns)} columns"
+                           + (" (truncated to 5000 rows)" if truncated else ""))
+            except Exception as e:
+                st.error(f"❌ {f.name}: {e}")
+        st.rerun()
 
-    # log searches only when the query actually changes (avoid spam)
+    if want_demo:
+        name, df = load_sample()
+        saved = save_dataset(user["id"], name + ".csv", df)
+        log_event(user, "upload_dataset", f"Loaded demo dataset as '{saved}'")
+        st.success(f"✅ Demo dataset loaded as **{saved}**")
+        st.rerun()
+
+    datasets = list_datasets(user["id"])
+    if not datasets:
+        st.info("👆 Upload a CSV/Excel file above (or load the demo) to begin. "
+                "Expected columns: a **review text** column, plus optional item / rating / date columns.")
+        return None, None
+
+    labels = [f"{d['name']}  ({d['row_count']} rows)" for d in datasets]
+    ids = [d["id"] for d in datasets]
+    prev = st.session_state.get("ds_id")
+    sel_label = st.selectbox("Active dataset", labels,
+                             index=ids.index(prev) if prev in ids else 0)
+    ds_id = ids[labels.index(sel_label)]
+    if ds_id != prev:
+        for k in ("selected_item", "analysis", "visible_count", "last_search"):
+            st.session_state.pop(k, None)
+        st.session_state.ds_id = ds_id
+        st.rerun()
+
+    ds_name, df = load_dataset(ds_id, user["id"])
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.caption(f"📄 **{ds_name}** • {len(df)} rows • columns: {', '.join(df.columns)}")
+    with c2:
+        if st.button("🗑️ Delete dataset", type="secondary", use_container_width=True):
+            delete_dataset(ds_id, user["id"])
+            log_event(user, "delete_dataset", f"Deleted '{ds_name}'")
+            for k in ("ds_id", "selected_item", "analysis", "uploaded_names"):
+                st.session_state.pop(k, None)
+            st.rerun()
+    with st.expander("👀 Preview data (first 10 rows)"):
+        st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+    return ds_id, (ds_name, df)
+
+
+# ---------- section 2: column mapping ----------
+
+def _mapping_section(df, ds_id):
+    st.markdown("### 🗂️ Step 2 — Map your columns")
+    auto = auto_map_columns(df)
+    key = f"mapping_{ds_id}"
+    if key not in st.session_state:
+        st.session_state[key] = auto
+    saved = st.session_state[key]
+    cols = list(df.columns)
+
+    def _pick(label, role, required):
+        opts = cols if required else ["(none)"] + cols
+        cur = saved.get(role)
+        idx = opts.index(cur) if cur in opts else 0
+        return st.selectbox(label, opts, index=idx, key=f"{key}_{role}")
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        text_col = _pick("💬 Review text *", "text", True)
+    with m2:
+        item_col = _pick("📦 Item / Product", "item", False)
+    with m3:
+        rating_col = _pick("⭐ Rating", "rating", False)
+    with m4:
+        date_col = _pick("📅 Date", "date", False)
+    mapping = {"text": text_col,
+               "item": None if item_col == "(none)" else item_col,
+               "rating": None if rating_col == "(none)" else rating_col,
+               "date": None if date_col == "(none)" else date_col,
+               "author": auto.get("author")}
+    if mapping != saved:
+        st.session_state[key] = mapping
+        st.session_state.pop("analysis", None)
+        st.session_state.pop("selected_item", None)
+    return mapping
+
+
+# ---------- section 3: search ----------
+
+def _search_section(df, mapping, user):
+    st.markdown("### 🔎 Step 3 — Search your data")
+    item_col, text_col, rating_col = mapping["item"], mapping["text"], mapping["rating"]
+
+    q1, q2 = st.columns([1.3, 1])
+    with q1:
+        query = st.text_input("Search items" if item_col else "Search",
+                              value=st.session_state.get("query", ""),
+                              placeholder="Type key-wise:  a → au → aur → aura …  (press Enter)",
+                              key="query") if item_col else ""
+    with q2:
+        keyword = st.text_input("🔤 Keyword in reviews (optional)", placeholder="e.g. battery, delivery, price…",
+                                key="keyword")
+
+    rating_vals = []
+    if rating_col and rating_col in df.columns:
+        nums = pd.to_numeric(df[rating_col], errors="coerce").dropna()
+        if not nums.empty:
+            uniq = sorted(nums.unique().tolist())
+            rating_vals = st.multiselect("⭐ Filter by rating", uniq, default=uniq, key="rating_f")
+
+    # apply keyword + rating filters
+    fdf = df
+    if keyword:
+        fdf = fdf[fdf[text_col].astype(str).str.contains(keyword, case=False, na=False)]
+    if rating_vals and rating_col:
+        fdf = fdf[pd.to_numeric(fdf[rating_col], errors="coerce").isin(rating_vals)]
+
     if query != st.session_state.get("last_search", ""):
         st.session_state.last_search = query
         if query:
-            log_event(user, "search", f"Searched '{query}' → {len(results)} results")
+            log_event(user, "search", f"Searched items for '{query}'")
 
-    st.markdown(f"**{len(results)} products found**" +
-                (f" for prefix **“{query}”**" if query else " — scroll & pick any product"))
-    if not results:
-        st.warning("No products match. Try a shorter prefix (e.g. just “r”).")
-        return
+    if item_col and item_col in df.columns:
+        items = fdf[item_col].dropna().astype(str).tolist()
+        matches = search_items(items, query)
+        st.markdown(f"**{len(matches)} items found**" +
+                    (f" for prefix **“{query}”**" if query else f" • {len(fdf)} matching reviews"))
+        if not matches:
+            st.warning("No items match. Try a shorter prefix.")
+            return None
+        if "visible_count" not in st.session_state:
+            st.session_state.visible_count = 9
+        for i in range(0, min(len(matches), st.session_state.visible_count), 3):
+            cols = st.columns(3)
+            for j, name in enumerate(matches[i:i + 3]):
+                sub = fdf[fdf[item_col].astype(str) == name]
+                avg = None
+                if rating_col and rating_col in df.columns:
+                    nums = pd.to_numeric(sub[rating_col], errors="coerce").dropna()
+                    avg = float(nums.mean()) if not nums.empty else None
+                with cols[j]:
+                    st.markdown(item_card_html(name, len(sub), avg), unsafe_allow_html=True)
+                    picked = st.session_state.get("selected_item") == name
+                    if st.button(f"{'✅ Selected' if picked else 'Select'}  •  {name[:22]}",
+                                 key=f"sel_{i}_{j}", type="secondary", use_container_width=True):
+                        st.session_state.selected_item = None if picked else name
+                        st.session_state.analysis = None
+                        log_event(user, "view_product", f"Selected item '{name}' ({len(sub)} reviews)")
+                        st.rerun()
+        if st.session_state.visible_count < len(matches):
+            if st.button("⬇️ Show more items", type="secondary"):
+                st.session_state.visible_count += 9
+                st.rerun()
+    else:
+        st.info(f"📦 No item column mapped — analysis will run on **all {len(fdf)} matching reviews**.")
+    return fdf
 
-    # ---------- 2. Product grid ----------
-    if "visible_count" not in st.session_state:
-        st.session_state.visible_count = 9
-    visible = results[:st.session_state.visible_count]
-    for i in range(0, len(visible), 3):
-        cols = st.columns(3)
-        for j, p in enumerate(visible[i:i + 3]):
-            with cols[j]:
-                st.markdown(product_card_html(p), unsafe_allow_html=True)
-                if st.button(f"Select  •  {p['id']}", key=f"sel_{p['id']}", type="secondary",
-                             use_container_width=True):
-                    st.session_state.selected_pid = p["id"]
-                    st.session_state.analysis = None
-                    log_event(user, "view_product", f"Selected {p['name']} ({p['platform']})")
-                    st.rerun()
-    if st.session_state.visible_count < len(results):
-        if st.button("⬇️  Load more products", type="secondary"):
-            st.session_state.visible_count += 9
-            st.rerun()
 
+# ---------- section 4: analyse + dashboard ----------
+
+def _analyse_section(user, ds_id, ds_name, df, fdf, mapping):
     st.markdown('<div class="divider-line"></div>', unsafe_allow_html=True)
+    item = st.session_state.get("selected_item")
+    scope_df = fdf[fdf[mapping["item"]].astype(str) == item] if (item and mapping["item"]) else fdf
+    scope_name = item if item else "All matching reviews"
 
-    # ---------- 3. Selected product + Analyse ----------
-    pid = st.session_state.get("selected_pid")
-    if not pid:
-        st.info("👆 Select any product above to preview it here, then hit **Analyse The Reviews**.")
-        return
-    product = get_product(pid)
-    if not product:
-        return
+    a1, a2 = st.columns([1.4, 1])
+    with a1:
+        st.markdown(f"#### 🎯 Ready to analyse: **{scope_name}** ({len(scope_df)} reviews)")
+    with a2:
+        go = st.button("💜  Analyse The Reviews", use_container_width=True)
 
-    d1, d2 = st.columns([1, 1.4])
-    with d1:
-        st.markdown(f"""<div class="glass" style="text-align:center;">
-          <img src="{product['img']}" style="width:100%;height:260px;object-fit:cover;border-radius:14px;"
-               onerror="this.onerror=null;this.src='https://placehold.co/600x400?text={product['brand']}'"/>
-        </div>""", unsafe_allow_html=True)
-    with d2:
-        color = PLATFORM_COLORS.get(product["platform"], ACCENT)
-        off = round((1 - product["price"] / product["mrp"]) * 100)
-        st.markdown(f"""<div class="glass">
-          <span class="badge" style="background:{color};">{product['platform']}</span>
-          <span class="badge" style="background:#7c3aed;">{product['category']}</span>
-          <h2 style="margin:10px 0 4px;">{product['name']}</h2>
-          <div class="small-note">{product['brand']} • {product['desc']}</div>
-          <div style="margin:10px 0;" class="stars">{stars_html(product['rating'])}
-            <span style="color:#6d6890;"> {product['rating']} / 5</span></div>
-          <div><span class="price-now" style="font-size:1.4rem;">₹{product['price']:,}</span>
-            <span class="price-was">₹{product['mrp']:,}</span>
-            <span style="color:#047857;font-weight:700;"> {off}% off</span></div>
-        </div>""", unsafe_allow_html=True)
-        if st.button("💜  Analyse The Reviews", use_container_width=True):
-            with st.spinner("Running NLP aspect-sentiment analysis…"):
-                reviews = get_product_reviews(product, n=60)
-                result = analyze_reviews(reviews)
-                st.session_state.analysis = result
-                save_analysis(user["id"], product, result["total"],
-                              result["overall"]["positive"], result["overall"]["neutral"],
-                              result["overall"]["negative"], result["verdict"])
-                log_event(user, "analyse",
-                          f"Analysed {product['name']} → {result['verdict']} "
-                          f"(+{result['overall']['positive']}/~{result['overall']['neutral']}/-{result['overall']['negative']})")
-            st.rerun()
+    if go:
+        if scope_df.empty:
+            st.error("No reviews in the current selection.")
+            return
+        with st.spinner("Running NLP aspect-sentiment analysis…"):
+            reviews = reviews_from_df(scope_df, mapping)
+            result = analyze_reviews(reviews)
+            st.session_state.analysis = result
+            save_analysis(user["id"], ds_id, scope_name, ds_name, result["total"],
+                          result["overall"]["positive"], result["overall"]["neutral"],
+                          result["overall"]["negative"], result["verdict"])
+            log_event(user, "analyse",
+                      f"Analysed '{scope_name}' in '{ds_name}' → {result['verdict']} "
+                      f"(+{result['overall']['positive']}/~{result['overall']['neutral']}/-{result['overall']['negative']})")
+        st.rerun()
 
-    # ---------- 4. Dashboard ----------
     result = st.session_state.get("analysis")
     if not result:
         return
+    _dashboard(result, ds_name, scope_name)
 
-    st.markdown("### 📊 Analysis Dashboard")
+
+def _dashboard(result, ds_name, scope_name):
+    st.markdown(f"### 📊 Analysis Dashboard — {scope_name} <span class='small-note'>({ds_name})</span>",
+                unsafe_allow_html=True)
     ov = result["overall"]
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f"""<div class="glass" style="text-align:center;">
           <div class="kpi-label">TOTAL REVIEWS ANALYZED</div>
           <div class="kpi-value">{result['total']}</div>
-          <div class="kpi-sub">{product['platform']} • {product['brand']}</div></div>""",
-                    unsafe_allow_html=True)
+          <div class="kpi-sub">{scope_name[:28]}</div></div>""", unsafe_allow_html=True)
     with k2:
         st.markdown(f"""<div class="glass" style="text-align:center;">
           <div class="kpi-label">OVERALL VERDICT</div>
@@ -178,12 +289,20 @@ def page_analysis():
         st.plotly_chart(fig_radar(result["aspects"]), use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # Line chart: monthly trend if dates exist, else rolling trend
+    dates = [r.get("date", "") for r in result["rows"]]
+    sents = [r["sentiment"] for r in result["rows"]]
     st.markdown('<div class="glass">', unsafe_allow_html=True)
-    labels, prices = price_trend(product)
-    st.plotly_chart(fig_price(labels, prices, product), use_container_width=True)
+    tl = fig_timeline(dates, sents) if any(dates) else None
+    st.plotly_chart(tl if tl else fig_rolling(sents), use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Aspect detail table
+    ratings = [r["rating"] for r in result["rows"] if r.get("rating") is not None]
+    if ratings:
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
+        st.plotly_chart(fig_ratings(ratings), use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
     st.markdown("#### 🧩 Aspect detail")
     rows = []
     for a, d in result["aspects"].items():
@@ -193,7 +312,6 @@ def page_analysis():
     st.dataframe(pd.DataFrame(rows).sort_values("Positivity %", ascending=False),
                  use_container_width=True, hide_index=True)
 
-    # Sample reviews
     st.markdown("#### 💬 Sample analyzed reviews")
     filt = st.radio("Filter", ["All", "Positive", "Neutral", "Negative"], horizontal=True, key="rev_filter")
     shown = 0
@@ -201,10 +319,38 @@ def page_analysis():
         if filt != "All" and r["sentiment"] != filt.lower():
             continue
         tags = " ".join(f'<span class="aspect-tag">{a}</span>' for a in r["aspects"])
+        meta = f"<b>{r['author']}</b> <span class='small-note'>"
+        if r.get("date"):
+            meta += f"• {r['date']} "
+        if r.get("rating") is not None:
+            try:
+                stars = "★" * int(round(float(r["rating"]))) + "☆" * (5 - int(round(float(r["rating"]))))
+                meta += f"• {stars}"
+            except (TypeError, ValueError):
+                pass
+        meta += "</span>"
         st.markdown(f"""<div class="glass-soft" style="margin-bottom:10px;">
-          <b>{r['author']}</b> <span class="small-note">• {r['date']} • {'✅ Verified' if r['verified'] else 'Unverified'} • {'★'*r['rating']+'☆'*(5-r['rating'])}</span>
-          &nbsp; {sent_badge(r['sentiment'])}<br/>
+          {meta} &nbsp; {sent_badge(r['sentiment'])}<br/>
           <div style="margin:6px 0;">{r['text']}</div>{tags}</div>""", unsafe_allow_html=True)
         shown += 1
         if shown >= 8:
             break
+
+
+# ---------- page entry ----------
+
+def page_analysis():
+    user = st.session_state.user
+    header("Aspect Sentiment Analytics",
+           "Upload your own review datasets, search the data, and analyse any item.")
+    out = _dataset_section(user)
+    if out[0] is None:
+        return
+    ds_id, (ds_name, df) = out
+    mapping = _mapping_section(df, ds_id)
+    fdf = _search_section(df, mapping, user)
+    if fdf is None or fdf.empty:
+        if fdf is not None and fdf.empty:
+            st.warning("No reviews match the current filters.")
+        return
+    _analyse_section(user, ds_id, ds_name, df, fdf, mapping)

@@ -3,8 +3,12 @@ database.py — SQLite database layer (100% free, file-based).
 ------------------------------------------------------------
 Tables:
   users            -> accounts (username, gmail, hashed password, photo, ...)
+  datasets         -> user-uploaded review datasets (CSV text + metadata)
   activity_logs    -> every user action (for the Admin tracking panel)
-  analysis_history -> every product analysis each user runs
+  analysis_history -> every analysis each user runs
+                     (product_id   = dataset id
+                      product_name = analysed item, e.g. "Aura X5" or "All reviews"
+                      platform     = dataset name)
 
 All other files talk to the DB ONLY through the functions below.
 """
@@ -43,6 +47,17 @@ def init_db():
             provider TEXT DEFAULT 'email',
             created_at TEXT NOT NULL,
             last_login TEXT DEFAULT ''
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS datasets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            csv_text TEXT NOT NULL,
+            columns TEXT DEFAULT '',
+            row_count INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL
         )
     """)
     cur.execute("""
@@ -179,14 +194,15 @@ def log_event(user, event_type: str, detail: str = ""):
         pass  # tracking must never crash the app
 
 
-def save_analysis(user_id, product, total, pos, neu, neg, overall):
+def save_analysis(user_id, dataset_id, item_name, dataset_name, total, pos, neu, neg, overall):
+    """Save one analysis run to history."""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO analysis_history
            (user_id,product_id,product_name,platform,total_reviews,positive,neutral,negative,overall,timestamp)
            VALUES (?,?,?,?,?,?,?,?,?,?)""",
-        (user_id, product["id"], product["name"], product["platform"], total,
+        (user_id, str(dataset_id), item_name, dataset_name, total,
          pos, neu, neg, overall, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
     )
     conn.commit()

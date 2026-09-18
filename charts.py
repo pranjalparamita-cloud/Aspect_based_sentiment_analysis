@@ -6,8 +6,11 @@ fig_donut()    overall sentiment split
 fig_bar()      per-aspect positive/neutral/negative breakdown
 fig_sunburst() aspects -> sentiment hierarchy
 fig_radar()    aspect positivity scores (0-100)
-fig_price()    12-month price trend
+fig_timeline() line chart: monthly positivity trend (needs dates)
+fig_rolling()  line chart: rolling sentiment over review order (fallback)
+fig_ratings()  bar chart: star-rating distribution (needs ratings)
 """
+import pandas as pd
 import plotly.graph_objects as go
 
 from config import POS_COLOR, NEG_COLOR, NEU_COLOR
@@ -82,16 +85,52 @@ def fig_radar(aspect_data):
     return style_fig(fig, 440)
 
 
-def fig_price(labels, prices, product):
-    lo, hi = min(prices), max(prices)
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=labels, y=prices, mode="lines+markers", name="Price (₹)",
+def _line_trace(fig, x, y, name):
+    fig.add_trace(go.Scatter(x=x, y=y, mode="lines+markers", name=name,
                              line=dict(color="#7c3aed", width=3),
                              marker=dict(size=8, color="#ec4899",
                                          line=dict(color="white", width=2)),
                              fill="tozeroy", fillcolor="rgba(168,85,247,0.12)"))
-    fig.add_hline(y=prices[-1], line_dash="dash", line_color="#10b981",
-                  annotation_text=f"Current ₹{prices[-1]:,}")
-    fig.update_layout(title=f"Price Trend — {product['name'][:42]}…  (Low ₹{lo:,} • High ₹{hi:,})",
-                      title_font=dict(size=13, color="#4c1d95"), yaxis_title="Price (₹)")
+    return fig
+
+
+def fig_timeline(dates, sentiments, title="Monthly Positivity Trend (% positive)"):
+    """Line chart of % positive reviews per month. Returns None if <2 months."""
+    df = pd.DataFrame({"date": pd.to_datetime(dates, errors="coerce"),
+                       "pos": [1 if s == "positive" else 0 for s in sentiments]})
+    df = df.dropna(subset=["date"])
+    if df.empty:
+        return None
+    df["month"] = df["date"].dt.to_period("M").astype(str)
+    g = df.groupby("month")["pos"].mean().mul(100).round(1)
+    if len(g) < 2:
+        return None
+    fig = go.Figure()
+    _line_trace(fig, list(g.index), list(g.values), "Positive %")
+    fig.update_layout(title=title, title_font=dict(size=13, color="#4c1d95"),
+                      yaxis_title="Positive %", yaxis_range=[0, 100])
     return style_fig(fig, 380)
+
+
+def fig_rolling(sentiments, title="Sentiment Trend Across Reviews (rolling average)"):
+    """Fallback line chart when no dates exist: rolling positivity over review order."""
+    scores = [{"positive": 1.0, "neutral": 0.5, "negative": 0.0}[s] for s in sentiments]
+    s = pd.Series(scores)
+    window = max(3, min(20, len(s) // 10 or 3))
+    rolled = (s.rolling(window, min_periods=1).mean() * 100).round(1)
+    fig = go.Figure()
+    _line_trace(fig, list(range(1, len(rolled) + 1)), list(rolled.values), "Positive %")
+    fig.update_layout(title=title, title_font=dict(size=13, color="#4c1d95"),
+                      xaxis_title="Review #", yaxis_title="Positive %", yaxis_range=[0, 100])
+    return style_fig(fig, 380)
+
+
+def fig_ratings(ratings):
+    """Bar chart of star-rating distribution."""
+    vc = pd.Series(ratings).dropna().value_counts().sort_index()
+    fig = go.Figure()
+    fig.add_bar(x=[str(v) for v in vc.index], y=list(vc.values), name="Reviews",
+                marker_color=["#f43f5e", "#fb923c", "#a78bfa", "#34d399", "#10b981"][-len(vc):] or "#9333ea")
+    fig.update_layout(title="Rating Distribution", title_font=dict(size=14, color="#4c1d95"),
+                      xaxis_title="Stars", yaxis_title="Reviews")
+    return style_fig(fig, 340)

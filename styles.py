@@ -64,9 +64,8 @@ footer { visibility: hidden; }
 .kpi-value { font-size: 2.6rem; font-weight: 800; color: #7c3aed; line-height: 1.1; }
 .kpi-sub { font-size: 0.82rem; color: #6d6890; }
 
-.product-img { width: 100%; height: 165px; object-fit: cover; border-radius: 14px; }
-.product-name { font-weight: 700; font-size: 0.95rem; color: #2b2350; margin: 10px 0 2px;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.7em; }
+.item-name { font-weight: 700; font-size: 1rem; color: #2b2350; margin: 10px 0 4px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.9em; }
 .badge { display: inline-block; font-size: 0.68rem; font-weight: 700; color: #fff;
   padding: 3px 10px; border-radius: 999px; margin-right: 6px; }
 .price-row { margin-top: 6px; font-size: 0.9rem; }

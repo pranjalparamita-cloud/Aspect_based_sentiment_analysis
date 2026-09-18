@@ -12,7 +12,8 @@ All real logic lives in the modules below:
   config.py      constants (colours, paths, app name)
   database.py    SQLite: users, activity logs, analysis history
   auth.py        passwords, Gmail validation, login sessions
-  products.py    product catalog + key-wise prefix search
+  google_auth.py real "Continue with Google" (OAuth 2.0)
+  datasets.py    user-uploaded datasets (CSV/Excel) + search
   reviews.py     review corpus generator
   nlp_engine.py  aspect-sentiment NLP + price trends
   charts.py      Plotly dashboard figures

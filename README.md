@@ -12,7 +12,7 @@ No paid APIs, no heavy ML downloads — deploys in one click on **Streamlit Comm
 | Module | What it does |
 |---|---|
 | **🔐 Login / Sign-Up** | Gmail Authenticator (only `@gmail.com`), username + password + confirm password, hashed with PBKDF2 |
-| **🌐 Continue with Google** | One-click demo Google SSO with account chooser (auto-registers new Gmails) |
+| **🌐 Continue with Google** | REAL Google OAuth: Google's own chooser with logged-in Gmails, one-click login (see `GOOGLE_SETUP.md`); demo fallback when not configured |
 | **🔍 Analysis** | 36 products from **Amazon / Flipkart / Myntra** with images, key-wise prefix search (`r → re → red → redmi`), platform/category filters, sorting |
 | **📊 Dashboard** | One click → NLP aspect-sentiment dashboard: **Sunburst, Bar, Radar, Donut + Price-trend Line** chart, KPI cards, aspect table, annotated reviews |
 | **👤 My Profile** | Edit username, phone, bio, profile photo (stored in DB), change password, personal stats |
@@ -58,9 +58,11 @@ aspect-sentiment-app/
 ├── styles.py               # glassmorphism CSS theme
 ├── database.py             # SQLite: users, activity logs, analysis history
 ├── auth.py                 # passwords, Gmail validation, login sessions
-├── products.py             # catalog + key-wise prefix search
-├── reviews.py              # review corpus generator
-├── nlp_engine.py           # aspect-sentiment NLP + price trends
+├── google_auth.py          # real "Continue with Google" (OAuth 2.0)
+├── GOOGLE_SETUP.md         # guide: enable real Google login (free)
+├── datasets.py             # uploads (CSV/Excel), column mapping, search
+├── sample_data.csv         # demo dataset (120 reviews, 3 items)
+├── nlp_engine.py           # aspect-sentiment NLP
 ├── charts.py               # all 5 Plotly dashboard figures
 ├── ui_helpers.py           # reusable cards / avatars / badges
 ├── views/                  # one file per screen
@@ -74,12 +76,12 @@ aspect-sentiment-app/
 └── README.md
 ```
 
-## 🔌 Switching to real Google OAuth (optional)
+## 🔌 Real Google login (recommended)
 
-The demo Google SSO lives in one function: `google_account_chooser()` in `app.py`.
-For production, add the `streamlit-oauth` component + your Google Client ID in
-`.streamlit/secrets.toml` and replace that function body with the real OAuth flow —
-everything else (auto-registration, tracking) already works.
+The app ships with demo-mode Google login so it works immediately.
+For the REAL Gmail chooser (one-click login with logged-in accounts),
+follow **`GOOGLE_SETUP.md`** — free Google Cloud OAuth setup (~10 min),
+then add 3 secrets in Streamlit Cloud → Manage app → Settings → Secrets.
 
 ## 🛡️ Notes
 

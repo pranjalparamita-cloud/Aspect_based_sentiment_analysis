@@ -1,15 +1,12 @@
 """
 ui_helpers.py — Reusable UI building blocks (HTML snippets).
 ------------------------------------------------------------
-avatar_html()        user profile picture (or initial-letter fallback)
-sent_badge()         coloured Positive/Neutral/Negative pill
-product_card_html()  product tile used in the analysis grid
-header()             gradient page title + subtitle + divider
+avatar_html()     user profile picture (or initial-letter fallback)
+sent_badge()      coloured Positive/Neutral/Negative pill
+item_card_html()  item tile for dataset search results (name + counts)
+header()          gradient page title + subtitle + divider
 """
 import streamlit as st
-
-from config import PLATFORM_COLORS, ACCENT
-from products import stars_html
 
 
 def avatar_html(user, size="md"):
@@ -25,22 +22,28 @@ def sent_badge(s):
     return f'<span class="sent-{s[:3]}">{s.capitalize()}</span>'
 
 
-def product_card_html(p):
-    color = PLATFORM_COLORS.get(p["platform"], ACCENT)
-    off = round((1 - p["price"] / p["mrp"]) * 100)
+def stars_text(rating) -> str:
+    """Render a 5-star string, e.g. 4.3 -> '★★★★☆' ('' if no rating)."""
+    if rating is None:
+        return ""
+    try:
+        full = int(round(float(rating)))
+    except (TypeError, ValueError):
+        return ""
+    full = max(0, min(5, full))
+    return "★" * full + "☆" * (5 - full)
+
+
+def item_card_html(name, n_reviews, avg_rating=None):
+    stars = stars_text(avg_rating) if avg_rating is not None else ""
+    rating_line = (f'<div class="stars">{stars} '
+                   f'<span style="color:#6d6890;">{avg_rating:.1f} / 5</span></div>'
+                   if avg_rating is not None else '<div class="small-note">no ratings</div>')
     return f"""
     <div class="glass-soft" style="padding:14px; height:100%;">
-      <img class="product-img" src="{p['img']}"
-           onerror="this.onerror=null;this.src='https://placehold.co/600x400?text={p['brand']}'"/>
-      <div style="margin-top:10px;">
-        <span class="badge" style="background:{color};">{p['platform']}</span>
-        <span class="badge" style="background:#7c3aed;">{p['category']}</span>
-      </div>
-      <div class="product-name">{p['name']}</div>
-      <div class="stars">{stars_html(p['rating'])} <span style="color:#6d6890;">{p['rating']}</span></div>
-      <div class="price-row"><span class="price-now">₹{p['price']:,}</span>
-        <span class="price-was">₹{p['mrp']:,}</span>
-        <span style="color:#047857;font-weight:700;font-size:0.78rem;"> {off}% off</span></div>
+      <span class="badge" style="background:#7c3aed;">{n_reviews} review{'s' if n_reviews != 1 else ''}</span>
+      <div class="item-name">{name}</div>
+      {rating_line}
     </div>"""
 
 

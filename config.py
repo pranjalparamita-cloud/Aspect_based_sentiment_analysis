@@ -16,10 +16,3 @@ POS_COLOR = "#10b981"   # emerald  = Positive
 NEG_COLOR = "#f43f5e"   # rose/red = Negative
 NEU_COLOR = "#8b5cf6"   # violet   = Neutral
 ACCENT = "#9333ea"      # brand purple
-
-# ---- E-commerce platform badge colours ----
-PLATFORM_COLORS = {
-    "Amazon": "#FF9900",
-    "Flipkart": "#2874F0",
-    "Myntra": "#FF3F6C",
-}

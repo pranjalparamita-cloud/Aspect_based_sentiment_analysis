@@ -13,8 +13,10 @@ No paid APIs, no heavy ML downloads — deploys in one click on **Streamlit Comm
 |---|---|
 | **🔐 Login / Sign-Up** | Gmail Authenticator (only `@gmail.com`), username + password + confirm password, hashed with PBKDF2 |
 | **🌐 Continue with Google** | REAL Google OAuth: Google's own chooser with logged-in Gmails, one-click login (see `GOOGLE_SETUP.md`); demo fallback when not configured |
-| **🔍 Analysis** | 36 products from **Amazon / Flipkart / Myntra** with images, key-wise prefix search (`r → re → red → redmi`), platform/category filters, sorting |
-| **📊 Dashboard** | One click → NLP aspect-sentiment dashboard: **Sunburst, Bar, Radar, Donut + Price-trend Line** chart, KPI cards, aspect table, annotated reviews |
+| **📁 Flexible datasets** | Upload CSV, Excel, JSON or JSONL review data with any number of columns; supports malformed marketplace exports and preserves every source field |
+| **🗂️ Smart mapping** | Detects review text, item/product, rating, date and author from different header names *and actual sample values*; all suggestions are editable |
+| **🔍 Analysis** | Key-wise search across detected items (`r → re → red → redmi`) with optional review-keyword and rating filters |
+| **📊 Dashboard** | One click → NLP aspect-sentiment dashboard: **Sunburst, Bar, Radar, Donut + timeline/rolling Line** chart, KPI cards, aspect table, annotated reviews |
 | **👤 My Profile** | Edit username, phone, bio, profile photo (stored in DB), change password, personal stats |
 | **🕘 My History** | Every analysis you ran + CSV download |
 | **🛡️ Admin Panel** | Full **user tracking**: login time, every action, logout/leave time, session durations, charts, CSV exports |
@@ -60,7 +62,7 @@ aspect-sentiment-app/
 ├── auth.py                 # passwords, Gmail validation, login sessions
 ├── google_auth.py          # real "Continue with Google" (OAuth 2.0)
 ├── GOOGLE_SETUP.md         # guide: enable real Google login (free)
-├── datasets.py             # uploads (CSV/Excel), column mapping, search
+├── datasets.py             # flexible CSV/Excel/JSON uploads, smart schema inference, search
 ├── sample_data.csv         # demo dataset (120 reviews, 3 items)
 ├── nlp_engine.py           # aspect-sentiment NLP
 ├── charts.py               # all 5 Plotly dashboard figures

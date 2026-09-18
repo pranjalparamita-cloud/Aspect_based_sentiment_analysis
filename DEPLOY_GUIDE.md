@@ -62,7 +62,7 @@ git push -u origin main
 2. Log in with the demo accounts:
    - User → `demo@gmail.com` / `Demo@123`
    - Admin → `admin@gmail.com` / `Admin@123`
-3. Click **✨ Load demo dataset** (or upload your own CSV), search an item
+3. Click **✨ Load demo dataset** (or upload your own CSV, Excel or JSON file — any number of columns is accepted). Confirm the smart column suggestions, search an item
    (try typing `a`, then `au`, then `aura`), select it,
    click **Analyse The Reviews** and see the dashboard.
 4. As admin, open **🛡️ Admin Panel** to see user tracking.

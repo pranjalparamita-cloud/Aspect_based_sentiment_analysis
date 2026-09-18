@@ -13,8 +13,9 @@ from charts import (fig_donut, fig_bar, fig_sunburst, fig_radar,
                     fig_timeline, fig_rolling, fig_ratings)
 from config import POS_COLOR, NEG_COLOR
 from database import log_event, save_analysis
-from datasets import (read_upload, auto_map_columns, reviews_from_df, search_items,
-                      save_dataset, list_datasets, load_dataset, delete_dataset, load_sample)
+from datasets import (read_upload, infer_review_schema, rating_series, reviews_from_df,
+                      search_items, save_dataset, list_datasets, load_dataset,
+                      delete_dataset, load_sample)
 from nlp_engine import analyze_reviews
 from ui_helpers import header, item_card_html, sent_badge
 
@@ -25,8 +26,13 @@ def _dataset_section(user):
     st.markdown("### 📁 Step 1 — My Datasets")
     up_col, demo_col = st.columns([3, 1])
     with up_col:
-        files = st.file_uploader("Upload review datasets (CSV or Excel — one or many)",
-                                 type=["csv", "xlsx", "xls"], accept_multiple_files=True)
+        files = st.file_uploader(
+            "Upload review datasets (CSV, Excel or JSON — one or many)",
+            type=["csv", "xlsx", "xls", "json", "jsonl", "ndjson"],
+            accept_multiple_files=True,
+            help="Any number of columns is accepted. AspectLens keeps them all and automatically "
+                 "looks for review text, product/item, rating, date and reviewer fields.",
+        )
     with demo_col:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
         want_demo = st.button("✨ Load demo dataset", type="secondary", use_container_width=True)
@@ -40,11 +46,14 @@ def _dataset_section(user):
                 if df.empty or len(df.columns) == 0:
                     st.error(f"❌ {f.name}: no readable data found.")
                     continue
+                parse_note = df.attrs.get("parse_note")
                 name = save_dataset(user["id"], f.name, df)
                 st.session_state.setdefault("uploaded_names", set()).add(f.name)
                 log_event(user, "upload_dataset", f"Uploaded '{name}' ({len(df)} rows)")
                 st.success(f"✅ Saved **{name}** — {len(df)} rows × {len(df.columns)} columns"
                            + (" (truncated to 5000 rows)" if truncated else ""))
+                if parse_note:
+                    st.info(f"ℹ️ {parse_note}")
             except Exception as e:
                 st.error(f"❌ {f.name}: {e}")
         st.rerun()
@@ -58,8 +67,9 @@ def _dataset_section(user):
 
     datasets = list_datasets(user["id"])
     if not datasets:
-        st.info("👆 Upload a CSV/Excel file above (or load the demo) to begin. "
-                "Expected columns: a **review text** column, plus optional item / rating / date columns.")
+        st.info("👆 Upload any CSV, Excel or JSON review dataset (or load the demo). "
+                "It can contain any number of fields and use your own headers — AspectLens inspects "
+                "the names and values, then suggests review text and any useful item/rating/date fields.")
         return None, None
 
     labels = [f"{d['name']}  ({d['row_count']} rows)" for d in datasets]
@@ -93,34 +103,47 @@ def _dataset_section(user):
 # ---------- section 2: column mapping ----------
 
 def _mapping_section(df, ds_id):
-    st.markdown("### 🗂️ Step 2 — Map your columns")
-    auto = auto_map_columns(df)
+    st.markdown("### 🗂️ Step 2 — Smart column mapping")
+    auto, detection_report = infer_review_schema(df)
     key = f"mapping_{ds_id}"
     if key not in st.session_state:
         st.session_state[key] = auto
     saved = st.session_state[key]
     cols = list(df.columns)
 
-    def _pick(label, role, required):
-        opts = cols if required else ["(none)"] + cols
-        cur = saved.get(role)
-        idx = opts.index(cur) if cur in opts else 0
-        return st.selectbox(label, opts, index=idx, key=f"{key}_{role}")
+    st.caption(f"✨ Checked **all {len(cols)} columns** using their header names and sample values. "
+               "The suggestions below are editable — every original column remains in your dataset.")
+    with st.expander("See automatic field detection", expanded=False):
+        st.dataframe(pd.DataFrame(detection_report), use_container_width=True, hide_index=True)
+        st.caption("A suggested item field enables product-wise search; rating and date fields enable "
+                   "their dashboard charts. They are optional — review text is the only required field.")
 
-    m1, m2, m3, m4 = st.columns(4)
+    def _pick(label, role, required=False):
+        options = cols if required else ["(none)"] + cols
+        current = saved.get(role)
+        index = options.index(current) if current in options else 0
+        return st.selectbox(label, options, index=index, key=f"{key}_{role}")
+
+    m1, m2, m3 = st.columns(3)
     with m1:
-        text_col = _pick("💬 Review text *", "text", True)
+        text_col = _pick("💬 Review text *", "text", required=True)
     with m2:
-        item_col = _pick("📦 Item / Product", "item", False)
+        item_col = _pick("📦 Item / Product (optional)", "item")
     with m3:
-        rating_col = _pick("⭐ Rating", "rating", False)
+        rating_col = _pick("⭐ Rating (optional)", "rating")
+    m4, m5 = st.columns(2)
     with m4:
-        date_col = _pick("📅 Date", "date", False)
-    mapping = {"text": text_col,
-               "item": None if item_col == "(none)" else item_col,
-               "rating": None if rating_col == "(none)" else rating_col,
-               "date": None if date_col == "(none)" else date_col,
-               "author": auto.get("author")}
+        date_col = _pick("📅 Date (optional)", "date")
+    with m5:
+        author_col = _pick("👤 Reviewer / Author (optional)", "author")
+
+    mapping = {
+        "text": text_col,
+        "item": None if item_col == "(none)" else item_col,
+        "rating": None if rating_col == "(none)" else rating_col,
+        "date": None if date_col == "(none)" else date_col,
+        "author": None if author_col == "(none)" else author_col,
+    }
     if mapping != saved:
         st.session_state[key] = mapping
         st.session_state.pop("analysis", None)
@@ -146,7 +169,8 @@ def _search_section(df, mapping, user):
 
     rating_vals = []
     if rating_col and rating_col in df.columns:
-        nums = pd.to_numeric(df[rating_col], errors="coerce").dropna()
+        # Supports 4, 4.0 and strings such as "4 out of 5 stars".
+        nums = rating_series(df[rating_col]).dropna()
         if not nums.empty:
             uniq = sorted(nums.unique().tolist())
             rating_vals = st.multiselect("⭐ Filter by rating", uniq, default=uniq, key="rating_f")
@@ -156,7 +180,7 @@ def _search_section(df, mapping, user):
     if keyword:
         fdf = fdf[fdf[text_col].astype(str).str.contains(keyword, case=False, na=False)]
     if rating_vals and rating_col:
-        fdf = fdf[pd.to_numeric(fdf[rating_col], errors="coerce").isin(rating_vals)]
+        fdf = fdf[rating_series(fdf[rating_col]).isin(rating_vals)]
 
     if query != st.session_state.get("last_search", ""):
         st.session_state.last_search = query
@@ -179,7 +203,7 @@ def _search_section(df, mapping, user):
                 sub = fdf[fdf[item_col].astype(str) == name]
                 avg = None
                 if rating_col and rating_col in df.columns:
-                    nums = pd.to_numeric(sub[rating_col], errors="coerce").dropna()
+                    nums = rating_series(sub[rating_col]).dropna()
                     avg = float(nums.mean()) if not nums.empty else None
                 with cols[j]:
                     st.markdown(item_card_html(name, len(sub), avg), unsafe_allow_html=True)
@@ -324,7 +348,8 @@ def _dashboard(result, ds_name, scope_name):
             meta += f"• {r['date']} "
         if r.get("rating") is not None:
             try:
-                stars = "★" * int(round(float(r["rating"]))) + "☆" * (5 - int(round(float(r["rating"]))))
+                star_count = max(0, min(5, int(round(float(r["rating"])))) )
+                stars = "★" * star_count + "☆" * (5 - star_count)
                 meta += f"• {stars}"
             except (TypeError, ValueError):
                 pass

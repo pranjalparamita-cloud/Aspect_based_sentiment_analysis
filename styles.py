@@ -28,7 +28,17 @@ GLASS_CSS = """
 }
 [data-testid="stSidebar"] .block-container { padding-top: 1rem; }
 [data-testid="stHeader"] { background: rgba(255,255,255,0.0) !important; }
-[data-testid="stToolbar"] { display: none; }
+/* Do NOT hide stToolbar: it contains Streamlit's sidebar reopen control after
+   the sidebar is collapsed. Hiding it made the sidebar appear permanent-closed. */
+[data-testid="stToolbar"] { display: flex !important; visibility: visible !important; }
+[data-testid="stSidebarCollapsedControl"] {
+  display: flex !important; visibility: visible !important; opacity: 1 !important;
+  position: relative !important; z-index: 100000 !important;
+}
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="stSidebar"] button[kind="header"] {
+  visibility: visible !important; opacity: 1 !important;
+}
 footer { visibility: hidden; }
 
 .gradient-title {

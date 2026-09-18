@@ -13,9 +13,8 @@ All real logic lives in the modules below:
   database.py    SQLite: users, activity logs, analysis history
   auth.py        passwords, Gmail validation, login sessions
   google_auth.py real "Continue with Google" (OAuth 2.0)
-  datasets.py    user-uploaded datasets (CSV/Excel) + search
-  reviews.py     review corpus generator
-  nlp_engine.py  aspect-sentiment NLP + price trends
+  datasets.py    flexible uploads (CSV/Excel/JSON) + smart schema detection
+  nlp_engine.py  aspect-sentiment NLP
   charts.py      Plotly dashboard figures
   ui_helpers.py  reusable cards / avatars / badges
   views/         one file per screen (login, analysis, profile, history, admin)
@@ -78,12 +77,12 @@ def sidebar():
             st.rerun()
         st.markdown("---")
         with st.expander("ℹ️ How it works"):
-            st.caption("1️⃣ Search or scroll products (Amazon / Flipkart / Myntra)\n\n"
-                       "2️⃣ Select a product → **Analyse The Reviews**\n\n"
-                       "3️⃣ Pure-Python NLP tags each sentence to an aspect "
-                       "(Quality, Price, Delivery, Packaging, Service, Features, Durability, Design) "
-                       "and scores sentiment with a negation/intensifier-aware lexicon.\n\n"
-                       "4️⃣ Results render as Sunburst, Bar, Radar, Donut + Price-trend charts.")
+            st.caption("1️⃣ Upload a review dataset — any number of columns is accepted.\n\n"
+                       "2️⃣ Confirm the smart suggestions for review text, item, rating, date and author.\n\n"
+                       "3️⃣ Search/select an item (if available) → **Analyse The Reviews**.\n\n"
+                       "4️⃣ Pure-Python NLP tags sentences by aspect (Quality, Price, Delivery, "
+                       "Packaging, Service, Features, Durability, Design) and scores sentiment.\n\n"
+                       "5️⃣ Results render as Sunburst, Bar, Radar, Donut and timeline charts.")
 
 
 # ---------- router ----------

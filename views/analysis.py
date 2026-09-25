@@ -12,13 +12,14 @@ import html
 import pandas as pd
 import streamlit as st
 
-from catalog import (catalog_categories, catalog_summary, get_catalog_product,
-                     get_catalog_reviews, search_catalog)
+from catalog import (catalog_categories, catalog_match_count, catalog_summary,
+                     get_catalog_product, get_catalog_reviews, search_catalog)
 from charts import (fig_donut, fig_bar, fig_sunburst, fig_radar,
                     fig_timeline, fig_rolling, fig_ratings)
 from config import POS_COLOR, NEG_COLOR
 from database import log_event, save_analysis
 from nlp_engine import analyze_reviews
+from product_visuals import catalog_image_html
 from ui_helpers import catalog_card_html, header, sent_badge, stars_text
 
 CATALOG_NAME = "Built-in Product Catalog · generated demo data"
@@ -46,7 +47,8 @@ def _choose_product(product, user):
 
 
 def _catalog_search(user):
-    st.markdown("### 🔎 Find a product")
+    """Autocomplete search plus paginated access to all 5,000 catalog items."""
+    st.markdown("### 🔎 Browse every product")
     left, right = st.columns([2.25, 1])
     with left:
         query = st.text_input(
@@ -58,16 +60,28 @@ def _catalog_search(user):
     with right:
         category = st.selectbox("Category", ["All categories"] + catalog_categories(), key="catalog_category")
 
-    matches = search_catalog(query, category, limit=12)
-    heading = "Autocomplete suggestions" if query.strip() else "Featured catalog products"
-    st.markdown(f"**{heading}** <span class='small-note'>• showing up to 12 matches</span>", unsafe_allow_html=True)
-    if not matches:
+    # Returning to page one after a search/filter change prevents blank pages.
+    signature = (query.strip().lower(), category)
+    if signature != st.session_state.get("catalog_filter_signature"):
+        st.session_state["catalog_filter_signature"] = signature
+        st.session_state["catalog_page"] = 0
+    total = catalog_match_count(query, category)
+    page_size = 24
+    pages = max(1, (total + page_size - 1) // page_size)
+    page_index = min(st.session_state.get("catalog_page", 0), pages - 1)
+    st.session_state["catalog_page"] = page_index
+
+    header_text = "Autocomplete search results" if query.strip() else "All catalog products"
+    st.markdown(f"**{header_text}** <span class='small-note'>• {total:,} matching products • "
+                f"browse 24 products per page</span>", unsafe_allow_html=True)
+    if not total:
         st.warning("No products matched that search. Try a shorter term, a brand, or choose All categories.")
         return
 
-    for start in range(0, len(matches), 3):
-        columns = st.columns(3)
-        for index, product in enumerate(matches[start:start + 3]):
+    matches = search_catalog(query, category, limit=page_size, offset=page_index * page_size)
+    for start in range(0, len(matches), 4):
+        columns = st.columns(4)
+        for index, product in enumerate(matches[start:start + 4]):
             with columns[index]:
                 st.markdown(catalog_card_html(product), unsafe_allow_html=True)
                 selected = st.session_state.get("catalog_product_id") == product["id"]
@@ -75,6 +89,20 @@ def _catalog_search(user):
                              key=f"catalog_pick_{product['id']}",
                              type="secondary", use_container_width=True):
                     _choose_product(product, user)
+
+    nav_left, nav_page, nav_right = st.columns([1, 1.35, 1])
+    with nav_left:
+        if st.button("← Previous", disabled=page_index == 0, use_container_width=True, key="catalog_prev"):
+            st.session_state["catalog_page"] = page_index - 1
+            st.rerun()
+    with nav_page:
+        st.markdown(f"<div class='small-note' style='text-align:center; padding-top:10px;'>"
+                    f"Page <b>{page_index + 1}</b> of <b>{pages}</b> • {total:,} products</div>",
+                    unsafe_allow_html=True)
+    with nav_right:
+        if st.button("Next →", disabled=page_index >= pages - 1, use_container_width=True, key="catalog_next"):
+            st.session_state["catalog_page"] = page_index + 1
+            st.rerun()
 
 
 def _review_feed(reviews, analysed_rows=None):
@@ -175,6 +203,15 @@ def _product_workspace(user, product_id):
     st.markdown("<div class='demo-note'><b>Demo data notice:</b> This product-style listing and its review text are "
                 "generated for application demonstration. They are not claimed to be verified customer reviews.</div>",
                 unsafe_allow_html=True)
+
+    st.markdown("#### 🖼️ Product gallery")
+    st.caption("Generated studio-style visual previews: front, angled and detail views. "
+               "They are visual representations for this demo catalog, not retailer photographs of a specific SKU.")
+    for gallery_col, view, label in zip(st.columns(3), ("front", "angle", "detail"),
+                                        ("Front view", "Angled view", "Detail view")):
+        with gallery_col:
+            st.markdown(catalog_image_html(product, view, "catalog-gallery-image"), unsafe_allow_html=True)
+            st.markdown(f"<div class='gallery-label'>{label}</div>", unsafe_allow_html=True)
 
     m1, m2, m3 = st.columns(3)
     m1.metric("Review samples", len(reviews))

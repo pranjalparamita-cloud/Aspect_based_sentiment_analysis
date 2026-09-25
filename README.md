@@ -77,6 +77,7 @@ On first launch, SQLite automatically creates and seeds the built-in catalog:
 aspect-sentiment-app/
 ├── app.py                  # app setup, sidebar and routing
 ├── catalog.py              # 5,000-product / 50,000-review generated demo catalog
+├── product_visuals.py      # generated product thumbnail + 3-view gallery visuals
 ├── database.py             # SQLite schema, user data and catalog seeding
 ├── nlp_engine.py           # aspect-based sentiment engine
 ├── charts.py               # Plotly dashboard figures

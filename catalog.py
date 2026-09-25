@@ -176,7 +176,26 @@ def catalog_categories():
     return [row[0] for row in rows]
 
 
-def search_catalog(query="", category="All categories", limit=12):
+def catalog_match_count(query="", category="All categories"):
+    """Count the products matching the current browse/search controls."""
+    query = (query or "").strip().lower()
+    conn = _conn()
+    where, params = [], []
+    if query:
+        for term in [term for term in query.split() if term]:
+            like = f"%{term}%"
+            where.append("(LOWER(title) LIKE ? OR LOWER(brand) LIKE ? OR LOWER(category) LIKE ? OR LOWER(sku) LIKE ?)")
+            params.extend([like, like, like, like])
+    if category != "All categories":
+        where.append("category=?")
+        params.append(category)
+    suffix = f" WHERE {' AND '.join(where)}" if where else ""
+    count = conn.execute(f"SELECT COUNT(*) FROM catalog_products{suffix}", params).fetchone()[0]
+    conn.close()
+    return count
+
+
+def search_catalog(query="", category="All categories", limit=24, offset=0):
     """Prefix-first search for title, brand, category, product type or SKU."""
     query = (query or "").strip().lower()
     conn = _conn()
@@ -197,8 +216,8 @@ def search_catalog(query="", category="All categories", limit=12):
                    FROM catalog_products WHERE {' AND '.join(where)}
                    ORDER BY CASE WHEN LOWER(title) LIKE ? THEN 0
                                  WHEN LOWER(brand) LIKE ? THEN 1 ELSE 2 END,
-                            title LIMIT ?"""
-        params.extend([prefix, prefix, limit])
+                            title LIMIT ? OFFSET ?"""
+        params.extend([prefix, prefix, limit, offset])
     else:
         params = []
         where = ""
@@ -206,8 +225,8 @@ def search_catalog(query="", category="All categories", limit=12):
             where = "WHERE category=?"
             params.append(category)
         sql = f"""SELECT id, sku, title, brand, category, product_type, review_count
-                   FROM catalog_products {where} ORDER BY id LIMIT ?"""
-        params.append(limit)
+                   FROM catalog_products {where} ORDER BY id LIMIT ? OFFSET ?"""
+        params.extend([limit, offset])
     rows = conn.execute(sql, params).fetchall()
     columns = ["id", "sku", "title", "brand", "category", "product_type", "review_count"]
     conn.close()

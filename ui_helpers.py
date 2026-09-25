@@ -10,6 +10,8 @@ header()          gradient page title + subtitle + divider
 import html
 import streamlit as st
 
+from product_visuals import catalog_image_html
+
 
 def avatar_html(user, size="md"):
     cls = "avatar" if size == "md" else "avatar-sm"
@@ -56,10 +58,12 @@ def catalog_card_html(product):
     category = html.escape(str(product["category"]))
     sku = html.escape(str(product["sku"]))
     count = int(product.get("review_count", 0))
+    image = catalog_image_html(product, "front", "catalog-thumb")
     return f"""
     <div class="catalog-card">
       <div class="catalog-card-top"><span class="catalog-category">{category}</span>
         <span class="catalog-sku">{sku}</span></div>
+      {image}
       <div class="catalog-title">{title}</div>
       <div class="catalog-meta"><b>{brand}</b> &nbsp;•&nbsp; {count} mixed review samples</div>
     </div>"""

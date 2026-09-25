@@ -77,8 +77,8 @@ def sidebar():
             st.rerun()
         st.markdown("---")
         with st.expander("ℹ️ How it works"):
-            st.caption("1️⃣ Search the 5,000-item built-in catalog by product, brand, category or SKU.\n\n"
-                       "2️⃣ Choose an autocomplete suggestion to open its product workspace.\n\n"
+            st.caption("1️⃣ Browse all 5,000 catalog items by page, or search by product, brand, category or SKU.\n\n"
+                       "2️⃣ Choose a product to open its front, angled and detail visual gallery.\n\n"
                        "3️⃣ Read all 10 mixed demo review samples and click **Analyse all product reviews**.\n\n"
                        "4️⃣ Pure-Python NLP tags Quality, Price, Delivery, Packaging, Service, "
                        "Features, Durability and Design, then scores sentiment.\n\n"

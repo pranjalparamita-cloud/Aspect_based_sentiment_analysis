@@ -76,10 +76,14 @@ footer { visibility: hidden; }
 
 .item-name { font-weight: 700; font-size: 1rem; color: #2b2350; margin: 10px 0 4px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.9em; }
-.catalog-card { height:100%; min-height:140px; box-sizing:border-box; padding:15px;
+.catalog-card { height:100%; min-height:260px; box-sizing:border-box; padding:15px;
   border-radius:16px; background:rgba(255,255,255,.54); border:1px solid rgba(255,255,255,.78);
   box-shadow:0 6px 20px rgba(129,105,218,.12); }
 .catalog-card-top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+.catalog-thumb { width:100%; height:132px; display:block; object-fit:cover; margin:10px 0 8px; border-radius:12px; }
+.catalog-gallery-image { width:100%; min-height:190px; display:block; object-fit:cover; border-radius:16px;
+  border:1px solid rgba(255,255,255,.85); box-shadow:0 6px 22px rgba(91,68,156,.13); }
+.gallery-label { margin:7px 0 12px; color:#6d6890; font-size:.73rem; font-weight:700; text-align:center; letter-spacing:.55px; }
 .catalog-category { display:inline-block; padding:3px 8px; border-radius:999px; background:rgba(124,58,237,.13);
   color:#6d28d9; font-size:.67rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .catalog-sku { color:#77719a; font-size:.66rem; font-weight:600; }

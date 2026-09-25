@@ -15,8 +15,8 @@ Follow these 3 parts in order. Total time: ~10 minutes. Everything is FREE.
 4. On the repo page, click **uploading an existing file** (or `Add file` → `Upload files`).
 5. Drag & drop **EVERYTHING** from the `aspect-sentiment-app` folder:
    all `.py` files (`app.py`, `config.py`, `database.py`, `auth.py`,
-   `google_auth.py`, `datasets.py`, `nlp_engine.py`, `charts.py`,
-   `styles.py`, `ui_helpers.py`), the `views` folder, `sample_data.csv`,
+   `google_auth.py`, `catalog.py`, `nlp_engine.py`, `charts.py`,
+   `styles.py`, `ui_helpers.py`), the `views` folder,
    `GOOGLE_SETUP.md`, `requirements.txt`, `README.md`, `.gitignore`,
    plus the `.streamlit` folder (`config.toml` + `secrets.toml.example`).
    > ⚠️ Upload so that `app.py` is at the **top level** of the repo,
@@ -62,9 +62,7 @@ git push -u origin main
 2. Log in with the demo accounts:
    - User → `demo@gmail.com` / `Demo@123`
    - Admin → `admin@gmail.com` / `Admin@123`
-3. Click **✨ Load demo dataset** (or upload your own CSV, Excel or JSON file — any number of columns is accepted). Confirm the smart column suggestions, search an item
-   (try typing `a`, then `au`, then `aura`), select it,
-   click **Analyse The Reviews** and see the dashboard.
+3. Open **🛍️ Product Explorer**, type a product/brand/category/SKU (try `samsung`, `brake pad` or `air fryer`), choose an autocomplete suggestion, then click **Analyse all product reviews** to see the dashboard. The app seeds its 5,000-item built-in demo catalog automatically on first launch.
 4. As admin, open **🛡️ Admin Panel** to see user tracking.
 
 ---

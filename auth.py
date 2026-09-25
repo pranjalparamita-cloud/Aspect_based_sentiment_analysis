@@ -65,7 +65,7 @@ def do_login(user, via="email"):
     st.session_state.user = get_user_by_id(user["id"])
     st.session_state.session_id = uuid.uuid4().hex[:12]
     st.session_state.login_time = datetime.now()
-    st.session_state.page = "🔍 Analysis"
+    st.session_state.page = "🛍️ Product Explorer"
     update_user(user["id"], last_login=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     log_event(st.session_state.user, "login" if via == "email" else "google_login",
               f"Logged in via {via}")

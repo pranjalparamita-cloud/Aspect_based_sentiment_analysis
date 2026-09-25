@@ -3,12 +3,13 @@ database.py — SQLite database layer (100% free, file-based).
 ------------------------------------------------------------
 Tables:
   users            -> accounts (username, gmail, hashed password, photo, ...)
-  datasets         -> user-uploaded review datasets (CSV text + metadata)
+  catalog_products -> built-in 5,000-item product catalog
+  catalog_reviews  -> generated mixed demonstration review samples
   activity_logs    -> every user action (for the Admin tracking panel)
-  analysis_history -> every analysis each user runs
-                     (product_id   = dataset id
-                      product_name = analysed item, e.g. "Aura X5" or "All reviews"
-                      platform     = dataset name)
+  analysis_history -> every product review analysis each user runs
+                     (product_id   = catalog product id
+                      product_name = analysed catalog item
+                      platform     = catalog source label)
 
 All other files talk to the DB ONLY through the functions below.
 """
@@ -49,17 +50,34 @@ def init_db():
             last_login TEXT DEFAULT ''
         )
     """)
+    # Built-in searchable demonstration catalog (5,000 items / 50,000 reviews).
+    # Content is generated demo data and clearly labelled in the interface.
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS datasets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            csv_text TEXT NOT NULL,
-            columns TEXT DEFAULT '',
-            row_count INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL
+        CREATE TABLE IF NOT EXISTS catalog_products (
+            id INTEGER PRIMARY KEY,
+            sku TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            brand TEXT NOT NULL,
+            category TEXT NOT NULL,
+            product_type TEXT NOT NULL,
+            review_count INTEGER NOT NULL DEFAULT 0
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS catalog_reviews (
+            id INTEGER PRIMARY KEY,
+            product_id INTEGER NOT NULL,
+            reviewer TEXT NOT NULL,
+            rating REAL,
+            review_text TEXT NOT NULL,
+            review_date TEXT,
+            seed_sentiment TEXT NOT NULL,
+            FOREIGN KEY(product_id) REFERENCES catalog_products(id)
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_catalog_products_title ON catalog_products(title)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_catalog_products_category ON catalog_products(category)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_catalog_reviews_product ON catalog_reviews(product_id)")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS activity_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +125,11 @@ def init_db():
                 (username, email, phash, salt, is_admin, provider, now),
             )
     conn.commit()
+
+    # Generate the catalog in one SQLite transaction only on first launch.
+    # Local import avoids an import cycle during module loading.
+    from catalog import ensure_catalog_seed
+    ensure_catalog_seed(conn)
     conn.close()
 
 

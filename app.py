@@ -13,7 +13,7 @@ All real logic lives in the modules below:
   database.py    SQLite: users, activity logs, analysis history
   auth.py        passwords, Gmail validation, login sessions
   google_auth.py real "Continue with Google" (OAuth 2.0)
-  datasets.py    flexible uploads (CSV/Excel/JSON) + smart schema detection
+  catalog.py     built-in 5,000-item product catalog + generated demo reviews
   nlp_engine.py  aspect-sentiment NLP
   charts.py      Plotly dashboard figures
   ui_helpers.py  reusable cards / avatars / badges
@@ -50,11 +50,11 @@ def sidebar():
         </div>""", unsafe_allow_html=True)
         st.markdown(f'<div class="brand-mini">💜 {APP_NAME}</div>', unsafe_allow_html=True)
         st.markdown('<div class="divider-line"></div>', unsafe_allow_html=True)
-        options = ["🔍 Analysis", "👤 My Profile", "🕘 My History"]
+        options = ["🛍️ Product Explorer", "👤 My Profile", "🕘 My History"]
         if user.get("is_admin"):
             options.append("🛡️ Admin Panel")
         page = st.radio("Navigate", options, label_visibility="collapsed",
-                        index=options.index(st.session_state.get("page", "🔍 Analysis"))
+                        index=options.index(st.session_state.get("page", "🛍️ Product Explorer"))
                         if st.session_state.get("page") in options else 0)
         if page != st.session_state.get("page"):
             st.session_state.page = page
@@ -71,18 +71,18 @@ def sidebar():
                 delta = datetime.now() - login_t
                 dur = f"Session duration {str(delta).split('.')[0]}"
             log_event(user, "logout", f"User left the website. {dur}")
-            for k in ["user", "page", "selected_pid", "analysis", "visible_count",
-                      "query", "last_search", "show_google", "login_time", "session_id"]:
+            for k in ["user", "page", "catalog_product_id", "catalog_analysis", "catalog_query",
+                      "catalog_category", "show_google", "login_time", "session_id"]:
                 st.session_state.pop(k, None)
             st.rerun()
         st.markdown("---")
         with st.expander("ℹ️ How it works"):
-            st.caption("1️⃣ Upload a review dataset — any number of columns is accepted.\n\n"
-                       "2️⃣ Confirm the smart suggestions for review text, item, rating, date and author.\n\n"
-                       "3️⃣ Search/select an item (if available) → **Analyse The Reviews**.\n\n"
-                       "4️⃣ Pure-Python NLP tags sentences by aspect (Quality, Price, Delivery, "
-                       "Packaging, Service, Features, Durability, Design) and scores sentiment.\n\n"
-                       "5️⃣ Results render as Sunburst, Bar, Radar, Donut and timeline charts.")
+            st.caption("1️⃣ Search the 5,000-item built-in catalog by product, brand, category or SKU.\n\n"
+                       "2️⃣ Choose an autocomplete suggestion to open its product workspace.\n\n"
+                       "3️⃣ Read all 10 mixed demo review samples and click **Analyse all product reviews**.\n\n"
+                       "4️⃣ Pure-Python NLP tags Quality, Price, Delivery, Packaging, Service, "
+                       "Features, Durability and Design, then scores sentiment.\n\n"
+                       "5️⃣ Results render as Sunburst, Bar, Radar, Donut, trend and rating charts.")
 
 
 # ---------- router ----------
@@ -95,8 +95,8 @@ def main():
                     unsafe_allow_html=True)
         return
     sidebar()
-    page = st.session_state.get("page", "🔍 Analysis")
-    if page == "🔍 Analysis":
+    page = st.session_state.get("page", "🛍️ Product Explorer")
+    if page == "🛍️ Product Explorer":
         analysis.page_analysis()
     elif page == "👤 My Profile":
         profile.page_profile()

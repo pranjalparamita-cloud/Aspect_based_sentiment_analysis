@@ -1,41 +1,44 @@
-# 💜 AspectLens — Aspect-Based Sentiment Analytics
+# 💜 AspectLens — Product Review Intelligence
 
-A **100% FREE** glassmorphism web app built with **Streamlit + SQLite + Plotly + pure-Python NLP**.
-No paid APIs, no heavy ML downloads — deploys in one click on **Streamlit Community Cloud**.
+A polished, **100% free** Streamlit application for browsing a built-in product
+catalog and running aspect-based sentiment analysis on product review samples.
+Built with **Streamlit + SQLite + Plotly + pure-Python NLP** — no paid APIs or
+large ML downloads.
 
-![glassmorphism UI](https://placehold.co/800x200?text=Pastel+Glassmorphism+UI)
+> **Data transparency:** The bundled catalog uses recognised retail brands and
+> categories, but its 5,000 product-style listings and 50,000 varied review
+> samples are generated demonstration data. They are clearly labelled in the
+> UI and are **not** represented as verified customer reviews.
 
 ---
 
-## ✨ Features
+## ✨ What it includes
 
 | Module | What it does |
 |---|---|
-| **🔐 Login / Sign-Up** | Gmail Authenticator (only `@gmail.com`), username + password + confirm password, hashed with PBKDF2 |
-| **🌐 Continue with Google** | REAL Google OAuth: Google's own chooser with logged-in Gmails, one-click login (see `GOOGLE_SETUP.md`); demo fallback when not configured |
-| **📁 Flexible datasets** | Upload CSV, Excel, JSON or JSONL review data with any number of columns; supports malformed marketplace exports and preserves every source field |
-| **🗂️ Smart mapping** | Detects review text, item/product, rating, date and author from different header names *and actual sample values*; all suggestions are editable |
-| **🔍 Analysis** | Key-wise search across detected items (`r → re → red → redmi`) with optional review-keyword and rating filters |
-| **📊 Dashboard** | One click → NLP aspect-sentiment dashboard: **Sunburst, Bar, Radar, Donut + timeline/rolling Line** chart, KPI cards, aspect table, annotated reviews |
-| **👤 My Profile** | Edit username, phone, bio, profile photo (stored in DB), change password, personal stats |
-| **🕘 My History** | Every analysis you ran + CSV download |
-| **🛡️ Admin Panel** | Full **user tracking**: login time, every action, logout/leave time, session durations, charts, CSV exports |
+| **🛍️ Product Explorer** | Search a 5,000-item catalog by product, brand, category or SKU, with autocomplete-style suggestions |
+| **🔎 Category filters** | Browse Electronics, Mobile Accessories, Computers & Gaming, Appliances, Automotive Parts/Accessories, Home, Fashion, Sports and Books & Office |
+| **💬 Full review feed** | Every product includes 10 varied positive, neutral and negative review samples, displayed beneath the analysis workspace |
+| **📊 Review intelligence** | Aspect-sentiment dashboard: Sunburst, Bar, Radar, Donut, timeline, rating chart, KPI cards and aspect table |
+| **🔐 Accounts** | Gmail-only sign-up/login, hashed passwords, profile controls and session tracking |
+| **🕘 My History** | Saved analyses with verdicts and CSV download |
+| **🛡️ Admin Panel** | User activity tracking, session information and exports |
 
-### NLP engine (offline, free)
-- 8 aspects: **Quality, Price, Delivery, Packaging, Service, Features, Durability, Design**
-- Keyword tagging + negation/intensifier-aware lexicon scoring per sentence
-- Deterministic per-product review corpus (60 reviews each) so results are stable
+### NLP engine — offline and free
+
+- Eight aspects: **Quality, Price, Delivery, Packaging, Service, Features, Durability, Design**
+- Keyword aspect tagging plus negation/intensifier-aware sentiment scoring
+- Every analysis runs on the product's complete 10-review demo feed
 
 ---
 
-## 🚀 Deploy on Streamlit Cloud (free)
+## 🚀 How to use it
 
-1. Push this folder to a **public GitHub repo** (files: `app.py`, `requirements.txt`, `.streamlit/config.toml`).
-2. Go to [share.streamlit.io](https://share.streamlit.io/) → **New app** → pick repo/branch → main file `app.py` → **Deploy**.
-3. Done! Your app is live with a free `https://<app>.streamlit.app` URL.
-
-> The SQLite database (`absa.db`) is created automatically on first run.
-> Demo accounts are seeded automatically (see below).
+1. Open **🛍️ Product Explorer**.
+2. Type a product, brand, category or catalog SKU (for example `samsung`, `brake pad`, `air fryer`, or `AL-05-001`).
+3. Select one of the autocomplete suggestions.
+4. Read the product's complete mixed review feed.
+5. Click **Analyse all product reviews** for the dashboard.
 
 ## 💻 Run locally
 
@@ -43,6 +46,23 @@ No paid APIs, no heavy ML downloads — deploys in one click on **Streamlit Comm
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+On first launch, SQLite automatically creates and seeds the built-in catalog:
+
+- **5,000** product-style listings
+- **50,000** mixed review samples
+- **10** shopping categories
+
+## 🚀 Deploy on Streamlit Community Cloud
+
+1. Push this folder to a public GitHub repository.
+2. Go to [share.streamlit.io](https://share.streamlit.io/) → **New app**.
+3. Select the repository and `main` branch; set the main file path to `app.py`.
+4. Click **Deploy**.
+
+> `absa.db` is generated automatically. Streamlit Cloud may recreate its local
+> database when an app is restarted, so the catalog is designed to seed itself
+> safely whenever needed.
 
 ## 🔑 Demo accounts
 
@@ -53,42 +73,28 @@ streamlit run app.py
 
 ## 📁 Project structure
 
-```
+```text
 aspect-sentiment-app/
-├── app.py                  # entry point: theme, sidebar, routing (run THIS file)
-├── config.py               # constants: colours, DB path, app name
-├── styles.py               # glassmorphism CSS theme
-├── database.py             # SQLite: users, activity logs, analysis history
-├── auth.py                 # passwords, Gmail validation, login sessions
-├── google_auth.py          # real "Continue with Google" (OAuth 2.0)
-├── GOOGLE_SETUP.md         # guide: enable real Google login (free)
-├── datasets.py             # flexible CSV/Excel/JSON uploads, smart schema inference, search
-├── sample_data.csv         # demo dataset (120 reviews, 3 items)
-├── nlp_engine.py           # aspect-sentiment NLP
-├── charts.py               # all 5 Plotly dashboard figures
-├── ui_helpers.py           # reusable cards / avatars / badges
-├── views/                  # one file per screen
-│   ├── login.py            # login / sign-up / Google chooser
-│   ├── analysis.py         # search grid + NLP dashboard
-│   ├── profile.py          # edit profile + password + photo
-│   ├── history.py          # user's past analyses
-│   └── admin.py            # admin user-tracking panel
-├── requirements.txt        # 100% free dependencies
-├── .streamlit/config.toml  # pastel theme
-└── README.md
+├── app.py                  # app setup, sidebar and routing
+├── catalog.py              # 5,000-product / 50,000-review generated demo catalog
+├── database.py             # SQLite schema, user data and catalog seeding
+├── nlp_engine.py           # aspect-based sentiment engine
+├── charts.py               # Plotly dashboard figures
+├── ui_helpers.py           # cards, avatar, review and badge helpers
+├── styles.py               # glassmorphism UI and sidebar fix
+├── views/
+│   ├── analysis.py         # Product Explorer and full review-analysis workspace
+│   ├── login.py            # login / sign-up / Google entry point
+│   ├── profile.py          # profile controls
+│   ├── history.py          # saved analyses
+│   └── admin.py            # activity tracking
+├── requirements.txt
+└── .streamlit/config.toml
 ```
-
-## 🔌 Real Google login (recommended)
-
-The app ships with demo-mode Google login so it works immediately.
-For the REAL Gmail chooser (one-click login with logged-in accounts),
-follow **`GOOGLE_SETUP.md`** — free Google Cloud OAuth setup (~10 min),
-then add 3 secrets in Streamlit Cloud → Manage app → Settings → Secrets.
 
 ## 🛡️ Notes
 
-- Passwords are salted + hashed (PBKDF2-HMAC-SHA256, 100k rounds) — never stored plain.
-- Profile photos are resized to 256×256 and stored as base64 in SQLite (no file server needed).
-- "Leave time" is exact when users click **Logout**; otherwise the admin sees their last activity time.
-
-Made with 💜 using only free & open-source tools.
+- Passwords are salted and hashed using PBKDF2-HMAC-SHA256.
+- The catalog's generated content is for product-analytics demonstration only.
+- For production, replace `catalog.py` seed data with appropriately licensed
+  product and customer-review data, and retain source/consent attribution.

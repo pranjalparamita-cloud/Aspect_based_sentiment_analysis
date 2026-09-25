@@ -3,9 +3,11 @@ ui_helpers.py — Reusable UI building blocks (HTML snippets).
 ------------------------------------------------------------
 avatar_html()     user profile picture (or initial-letter fallback)
 sent_badge()      coloured Positive/Neutral/Negative pill
-item_card_html()  item tile for dataset search results (name + counts)
+item_card_html()  legacy compact item tile
+catalog_card_html() searchable built-in catalog tile
 header()          gradient page title + subtitle + divider
 """
+import html
 import streamlit as st
 
 
@@ -44,6 +46,22 @@ def item_card_html(name, n_reviews, avg_rating=None):
       <span class="badge" style="background:#7c3aed;">{n_reviews} review{'s' if n_reviews != 1 else ''}</span>
       <div class="item-name">{name}</div>
       {rating_line}
+    </div>"""
+
+
+def catalog_card_html(product):
+    """Professional compact catalog tile for product-search suggestions."""
+    title = html.escape(str(product["title"]))
+    brand = html.escape(str(product["brand"]))
+    category = html.escape(str(product["category"]))
+    sku = html.escape(str(product["sku"]))
+    count = int(product.get("review_count", 0))
+    return f"""
+    <div class="catalog-card">
+      <div class="catalog-card-top"><span class="catalog-category">{category}</span>
+        <span class="catalog-sku">{sku}</span></div>
+      <div class="catalog-title">{title}</div>
+      <div class="catalog-meta"><b>{brand}</b> &nbsp;•&nbsp; {count} mixed review samples</div>
     </div>"""
 
 
